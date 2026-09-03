@@ -1,0 +1,30 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local model/cache files
+models/
+.cache/
+.huggingface/
+huggingface/
+ollama/
+
+# IDE / OS
+.vscode/
+.idea/
+*.code-workspace
+.DS_Store
+Thumbs.db
+
+# Logs / temporary files
+*.log
+*.tmp
+*.temp
+
+# Python tooling
+.pytest_cache/
+.mypy_cache/
+
+# Keep project data/database unless explicitly excluded later
