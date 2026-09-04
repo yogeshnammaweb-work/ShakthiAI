@@ -13,6 +13,7 @@ class SQLiteRetriever:
 
         return self.store.search(
             query_embedding=query_embedding.tolist(),
+            query_text=query,
             k=self.k,
         )
 

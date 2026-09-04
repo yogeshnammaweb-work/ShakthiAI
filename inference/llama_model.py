@@ -2,26 +2,26 @@ import re
 import requests
 
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL_NAME = "qwen2.5:3b-instruct"
-
 class LlamaModel:
-    def __init__(self):
-        self.url = OLLAMA_URL
-        self.model = MODEL_NAME
+    def __init__(
+        self,
+        model: str = "gemma3:4b",
+        url: str = "http://localhost:11434/api/generate",
+    ):
+        self.model = model
+        self.url = url
 
     def generate(
         self,
         prompt: str,
-        max_tokens: int = 512,
-        temperature: float = 0.1,
+        max_tokens: int = 256,
+        temperature: float = 0.0,
     ) -> str:
 
         payload = {
             "model": self.model,
             "prompt": prompt,
             "stream": False,
-            "think": False,
             "options": {
                 "temperature": temperature,
                 "num_predict": max_tokens,
@@ -32,8 +32,9 @@ class LlamaModel:
             response = requests.post(
                 self.url,
                 json=payload,
-                timeout=600,
+                timeout=300,
             )
+
             response.raise_for_status()
 
         except requests.RequestException as exc:
@@ -50,25 +51,15 @@ class LlamaModel:
                 f"Unexpected Ollama response:\n{data}"
             )
 
-        output = output.strip()
-
-        # Qwen3 may place reasoning and final answer
-        # together inside the response field.
-        if "</think>" in output.lower():
-            output = re.split(
-                r"</think>",
-                output,
-                maxsplit=1,
-                flags=re.IGNORECASE,
-            )[1].strip()
-
-        # Remove any remaining thinking tags.
+        # Remove reasoning if any model returns <think>...</think>
         output = re.sub(
-            r"</?think>",
+            r"<think>.*?</think>",
             "",
             output,
-            flags=re.IGNORECASE,
-        ).strip()
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+
+        output = output.strip()
 
         if not output:
             raise RuntimeError(
