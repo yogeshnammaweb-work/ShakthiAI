@@ -1,5 +1,5 @@
 ﻿import sqlite3
-from array import array
+import unicodedata
 from pathlib import Path
 from typing import Iterable, Optional
 
@@ -11,32 +11,35 @@ class SQLiteStore:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.connection = sqlite3.connect(self.path)
-        self._create_tables()
+        self._validate_schema()
+
+    def _validate_schema(self):
+        columns = self.connection.execute(
+            "PRAGMA table_info(documents)"
+        ).fetchall()
+
+        column_names = {column[1] for column in columns}
+
+        required_columns = {
+            "id",
+            "text",
+            "embedding",
+            "source",
+            "page",
+            "chunk_index",
+            "chunk_id",
+        }
+
+        missing = required_columns - column_names
+
+        if missing:
+            raise RuntimeError(
+                "SQLite database schema is missing required columns: "
+                f"{sorted(missing)}"
+            )
 
     def _create_tables(self):
-        self.connection.execute("""
-            CREATE TABLE IF NOT EXISTS documents (
-                id TEXT PRIMARY KEY,
-                text TEXT NOT NULL,
-                source TEXT,
-                page INTEGER,
-                chunk_index INTEGER,
-                chunk_id TEXT
-            )
-        """)
-
-        self.connection.execute("""
-            CREATE TABLE IF NOT EXISTS embeddings (
-                document_id TEXT PRIMARY KEY,
-                embedding BLOB NOT NULL,
-                dimension INTEGER NOT NULL,
-                FOREIGN KEY(document_id)
-                    REFERENCES documents(id)
-                    ON DELETE CASCADE
-            )
-        """)
-
-        self.connection.commit()
+        pass
 
     def add_document(
         self,
@@ -48,34 +51,45 @@ class SQLiteStore:
         chunk_index: Optional[int] = None,
         chunk_id: Optional[str] = None,
     ):
-        embedding_list = list(embedding)
-
-        embedding_bytes = sqlite3.Binary(
-            array("f", embedding_list).tobytes()
+        embedding_array = np.asarray(
+            list(embedding),
+            dtype=np.float64,
         )
 
-        self.connection.execute("""
-            INSERT OR REPLACE INTO documents
-            (id, text, source, page, chunk_index, chunk_id)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (
-            document_id,
-            text,
-            source,
-            page,
-            chunk_index,
-            chunk_id,
-        ))
+        if embedding_array.ndim != 1:
+            raise ValueError("Embedding must be a one-dimensional vector.")
 
-        self.connection.execute("""
-            INSERT OR REPLACE INTO embeddings
-            (document_id, embedding, dimension)
-            VALUES (?, ?, ?)
-        """, (
-            document_id,
-            embedding_bytes,
-            len(embedding_list),
-        ))
+        if len(embedding_array) == 0:
+            raise ValueError("Embedding cannot be empty.")
+
+        embedding_bytes = sqlite3.Binary(
+            embedding_array.tobytes()
+        )
+
+        self.connection.execute(
+            """
+            INSERT OR REPLACE INTO documents
+            (
+                id,
+                text,
+                embedding,
+                source,
+                page,
+                chunk_index,
+                chunk_id
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                document_id,
+                text,
+                embedding_bytes,
+                source,
+                page,
+                chunk_index,
+                chunk_id,
+            ),
+        )
 
         self.connection.commit()
 
@@ -86,29 +100,56 @@ class SQLiteStore:
         return cursor.fetchone()[0]
 
     def get_document(self, document_id: str):
-        cursor = self.connection.execute("""
+        cursor = self.connection.execute(
+            """
             SELECT
-                d.id,
-                d.text,
-                d.source,
-                d.page,
-                d.chunk_index,
-                d.chunk_id,
-                e.embedding,
-                e.dimension
-            FROM documents d
-            JOIN embeddings e
-                ON d.id = e.document_id
-            WHERE d.id = ?
-        """, (document_id,))
+                id,
+                text,
+                embedding,
+                source,
+                page,
+                chunk_index,
+                chunk_id
+            FROM documents
+            WHERE id = ?
+            """,
+            (document_id,),
+        )
 
-        return cursor.fetchone()
+        row = cursor.fetchone()
+
+        if row is None:
+            return None
+
+        embedding = np.frombuffer(
+            row[2],
+            dtype=np.float64,
+        )
+
+        return (
+            row[0],
+            row[1],
+            row[3],
+            row[4],
+            row[5],
+            row[6],
+            embedding,
+            len(embedding),
+        )
 
     def _normalize_text(self, text: str) -> str:
-        text = (text or "").lower()
+        text = unicodedata.normalize(
+            "NFC",
+            text or "",
+        ).lower()
 
         return "".join(
-            char if char.isalnum() or char.isspace() else " "
+            char
+            if (
+                unicodedata.category(char)[0] in {"L", "M", "N"}
+                or char.isspace()
+            )
+            else " "
             for char in text
         )
 
@@ -116,17 +157,62 @@ class SQLiteStore:
         normalized_query = self._normalize_text(query_text)
 
         stop_words = {
-            "ಎಷ್ಟು", "ಎಂದರೇನು", "ಎಂದರೆ", "ಏನು", "ಯಾವುದು",
-            "ಯಾವ", "ಯಾವಾಗ", "ಯಾಕೆ", "ಏಕೆ", "ಹೇಗೆ",
-            "ಹೇಗಿದೆ", "ಹೇಗಿರುತ್ತದೆ", "ಯಾರು", "ಯಾರ",
-            "ಯಾರನ್ನು", "ಯಾವಾಗಲು", "ಮತ್ತು", "ಅಥವಾ",
-            "ನೀವು", "ನನಗೆ", "ನಮ್ಮ", "ನಿಮ್ಮ", "ಇದು",
-            "ಇದನ್ನು", "ಇದರಿಂದ", "ಇಲ್ಲಿ", "ಇದೆಯೇ",
-            "ಆಗಿದೆ", "ಆಗುತ್ತವೆ", "ಮಾಡುವುದು", "ಮಾಡಬೇಕು",
-            "ಮಾಡಬಹುದು", "ಹೇಗೆಂದು",
-            "what", "why", "how", "when", "where", "who",
-            "which", "is", "are", "the", "a", "an",
-            "and", "or", "can", "should", "does", "do",
+            "ನನಗೆ",
+            "ನಾನು",
+            "ನನ್ನ",
+            "ನಮ್ಮ",
+            "ನಮ್ಮದು",
+            "ಮತ್ತು",
+            "ಅಥವಾ",
+            "ಇದು",
+            "ಇದೆ",
+            "ಇದ್ದರೆ",
+            "ಇದ್ದಾಗ",
+            "ಏನು",
+            "ಯಾವ",
+            "ಯಾವುದು",
+            "ಹೇಗೆ",
+            "ಏಕೆ",
+            "ಎಷ್ಟು",
+            "ಯಾರು",
+            "ಎಲ್ಲಿ",
+            "ಬಗ್ಗೆ",
+            "ಎಂಬ",
+            "ಎಂದು",
+            "ಆಗ",
+            "ಗೆ",
+            "ನಲ್ಲಿ",
+            "ನಿಂದ",
+            "ಇಂದ",
+            "ಒಂದು",
+            "ಮಾತ್ರ",
+            "ಅದು",
+            "ಅವರು",
+            "ಅವರಿಗೆ",
+            "ನೀವು",
+            "ನಿಮಗೆ",
+            "ಮಾಡಿ",
+            "ಮಾಡುವುದು",
+            "ಮಾಡಬೇಕು",
+            "the",
+            "what",
+            "why",
+            "how",
+            "when",
+            "where",
+            "who",
+            "which",
+            "is",
+            "are",
+            "the",
+            "a",
+            "an",
+            "and",
+            "or",
+            "can",
+            "should",
+            "does",
+            "do",
         }
 
         return {
@@ -141,20 +227,22 @@ class SQLiteStore:
         query_text: str = "",
         k: int = 2,
     ):
-        rows = self.connection.execute("""
+        if k <= 0:
+            raise ValueError("k must be greater than zero.")
+
+        rows = self.connection.execute(
+            """
             SELECT
-                d.id,
-                d.text,
-                d.source,
-                d.page,
-                d.chunk_index,
-                d.chunk_id,
-                e.embedding,
-                e.dimension
-            FROM documents d
-            JOIN embeddings e
-                ON d.id = e.document_id
-        """).fetchall()
+                id,
+                text,
+                embedding,
+                source,
+                page,
+                chunk_index,
+                chunk_id
+            FROM documents
+            """
+        ).fetchall()
 
         if not rows:
             return {
@@ -165,31 +253,101 @@ class SQLiteStore:
 
         query = np.asarray(
             query_embedding,
-            dtype=np.float32,
+            dtype=np.float64,
         )
+
+        if query.ndim != 1:
+            raise ValueError(
+                "Query embedding must be one-dimensional."
+            )
+
+        if len(query) == 0:
+            raise ValueError(
+                "Query embedding cannot be empty."
+            )
 
         query_norm = np.linalg.norm(query)
 
         if query_norm == 0:
-            raise ValueError("Query embedding has zero norm.")
+            raise ValueError(
+                "Query embedding has zero norm."
+            )
 
         normalized_query = self._normalize_text(
             query_text.strip()
         )
 
-        query_terms = self._extract_query_terms(query_text)
+        query_terms = self._extract_query_terms(
+            query_text
+        )
+
+        symptom_concepts = {
+            "ಸುಸ್ತು": {
+                "ದಣಿವು",
+                "ದೌರ್ಬಲ್ಯ",
+            },
+            "ಸುಸ್ತಾಗಿದೆ": {
+                "ದಣಿವು",
+                "ದೌರ್ಬಲ್ಯ",
+            },
+            "ಸುಸ್ತಾಗುತ್ತದೆ": {
+                "ದಣಿವು",
+                "ದೌರ್ಬಲ್ಯ",
+            },
+            "ಸುಸ್ತಾಗುತ್ತೆ": {
+                "ದಣಿವು",
+                "ದೌರ್ಬಲ್ಯ",
+            },
+            "ತಲೆ ಸುತ್ತುತ್ತೆ": {
+                "ತಲೆ ಸುತ್ತುವುದು",
+                "ತಲೆ ಹಗುರವಾಗಿರುವ ಅನುಭವ",
+            },
+            "ತಲೆ ಸುತ್ತುತ್ತದೆ": {
+                "ತಲೆ ಸುತ್ತುವುದು",
+                "ತಲೆ ಹಗುರವಾಗಿರುವ ಅನುಭವ",
+            },
+            "ತಲೆ ಸುತ್ತುತ್ತಿದೆ": {
+                "ತಲೆ ಸುತ್ತುವುದು",
+                "ತಲೆ ಹಗುರವಾಗಿರುವ ಅನುಭವ",
+            },
+            "ತಲೆ ಸುತ್ತು": {
+                "ತಲೆ ಸುತ್ತುವುದು",
+                "ತಲೆ ಹಗುರವಾಗಿರುವ ಅನುಭವ",
+            },
+            "ತಲೆ ಹಗುರ": {
+                "ತಲೆ ಹಗುರವಾಗಿರುವ ಅನುಭವ",
+                "ತಲೆ ಸುತ್ತುವುದು",
+            },
+        }
+
+        detected_symptom_concepts = []
+
+        for phrase, canonical_terms in symptom_concepts.items():
+            normalized_phrase = self._normalize_text(phrase)
+
+            if normalized_phrase in normalized_query:
+                detected_symptom_concepts.append(
+                    canonical_terms
+                )
 
         results = []
 
         for row in rows:
+            document_id = row[0]
+            text = row[1] or ""
+            embedding_blob = row[2]
+
             embedding = np.frombuffer(
-                row[6],
-                dtype=np.float32,
+                embedding_blob,
+                dtype=np.float64,
             )
 
-            if len(embedding) != row[7]:
+            if len(embedding) != len(query):
                 raise ValueError(
-                    f"Embedding dimension mismatch for {row[0]}"
+                    "Embedding dimension mismatch for "
+                    f"{document_id}: "
+                    f"database={len(embedding)}, "
+                    f"query={len(query)}"
                 )
 
             embedding_norm = np.linalg.norm(embedding)
@@ -202,11 +360,11 @@ class SQLiteStore:
                     / (query_norm * embedding_norm)
                 )
 
-            text = row[1] or ""
+            text_for_matching = self._normalize_text(text)
 
-            normalized_text = self._normalize_text(text)
-
-            text_terms = set(normalized_text.split())
+            text_terms = set(
+                text_for_matching.split()
+            )
 
             matched_terms = {
                 term
@@ -220,26 +378,47 @@ class SQLiteStore:
 
             if (
                 normalized_query
-                and normalized_query in normalized_text
+                and normalized_query in text_for_matching
             ):
-                lexical_boost += 0.30
+                lexical_boost += 0.10
 
             if query_terms:
                 overlap_ratio = (
                     matched_term_count / len(query_terms)
                 )
-
-                lexical_boost += 0.30 * overlap_ratio
+                lexical_boost += (
+                    0.10 * overlap_ratio
+                )
 
             combined_score = similarity
 
-            if query_terms:
-                if matched_term_count == 0:
-                    combined_score = similarity * 0.35
-                else:
-                    combined_score += lexical_boost
-            else:
+            if matched_term_count > 0:
                 combined_score += lexical_boost
+
+            matched_symptom_terms = set()
+
+            for canonical_terms in detected_symptom_concepts:
+                for canonical_term in canonical_terms:
+                    normalized_canonical_term = (
+                        self._normalize_text(
+                            canonical_term
+                        )
+                    )
+
+                    if (
+                        normalized_canonical_term
+                        in text_for_matching
+                    ):
+                        matched_symptom_terms.add(
+                            canonical_term
+                        )
+
+            symptom_boost = min(
+                0.12,
+                0.06 * len(matched_symptom_terms),
+            )
+
+            combined_score += symptom_boost
 
             combined_score = max(
                 0.0,
@@ -248,19 +427,23 @@ class SQLiteStore:
 
             distance = 1.0 - combined_score
 
-            results.append({
-                "id": row[0],
-                "text": text,
-                "source": row[2],
-                "page": row[3],
-                "chunk_index": row[4],
-                "chunk_id": row[5],
-                "distance": distance,
-                "similarity": similarity,
-                "lexical_boost": lexical_boost,
-                "matched_terms": matched_terms,
-                "matched_term_count": matched_term_count,
-            })
+            results.append(
+                {
+                    "id": document_id,
+                    "text": text,
+                    "source": row[3],
+                    "page": row[4],
+                    "chunk_index": row[5],
+                    "chunk_id": row[6],
+                    "distance": distance,
+                    "similarity": similarity,
+                    "lexical_boost": lexical_boost,
+                    "symptom_boost": symptom_boost,
+                    "matched_terms": matched_terms,
+                    "matched_symptom_terms": matched_symptom_terms,
+                    "matched_term_count": matched_term_count,
+                }
+            )
 
         results.sort(
             key=lambda item: item["distance"]
@@ -281,6 +464,7 @@ class SQLiteStore:
                     "chunk_id": item["chunk_id"],
                     "matched_term_count": item["matched_term_count"],
                     "lexical_boost": item["lexical_boost"],
+                    "symptom_boost": item["symptom_boost"],
                 }
                 for item in top_results
             ],
