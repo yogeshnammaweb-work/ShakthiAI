@@ -1,11 +1,13 @@
-import json
+﻿import json
 from pathlib import Path
 
 from embeddings.embedder import Embedder
 from vectorstore.sqlite_store import SQLiteStore
 
 
-DATA = Path(r"data\master_dataset\StudentModules_chunks.jsonl")
+DATA = Path(
+    r"data\master_dataset\health_master_chunks.jsonl"
+)
 
 
 def main():
@@ -14,8 +16,12 @@ def main():
             f"Chunk file not found: {DATA}"
         )
 
-    with open(DATA, encoding="utf-8") as f:
-        rows = [json.loads(line) for line in f]
+    with DATA.open("r", encoding="utf-8") as f:
+        rows = [
+            json.loads(line)
+            for line in f
+            if line.strip()
+        ]
 
     print("Chunks to index:", len(rows))
 
@@ -29,18 +35,35 @@ def main():
             embedder.model.embed([row["text"]])
         )[0]
 
+        metadata_source = row.get(
+            "source",
+            row.get("dataset", "unknown"),
+        )
+
+        chunk_id = row.get(
+            "chunk_id",
+            row.get("id"),
+        )
+
+        if not chunk_id:
+            raise ValueError(
+                f"Missing chunk_id/id at row {index}: {row}"
+            )
+
         store.add_document(
-            document_id=row["chunk_id"],
+            document_id=chunk_id,
             text=row["text"],
             embedding=embedding,
-            source="DSERT StudentModules",
-            page=row["page"],
-            chunk_index=row["chunk_index"],
-            chunk_id=row["chunk_id"],
+            source=metadata_source,
+            page=row.get("page"),
+            chunk_index=row.get("chunk_index"),
+            chunk_id=chunk_id,
         )
 
         if index % 10 == 0 or index == len(rows):
-            print(f"Indexed: {index}/{len(rows)}")
+            print(
+                f"Indexed: {index}/{len(rows)}"
+            )
 
     print()
     print("SQLite indexing complete.")

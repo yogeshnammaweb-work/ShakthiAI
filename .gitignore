@@ -28,3 +28,12 @@ Thumbs.db
 .mypy_cache/
 
 # Keep project data/database unless explicitly excluded later
+
+# Raw government health source files - keep locally, do not commit
+data/master_dataset/health_kannada/*.zip
+data/master_dataset/health_kannada/*.pdf
+
+# Raw/temporary TB poster images
+data/master_dataset/health_kannada/nhm_tb/**/*.jpg
+data/master_dataset/health_kannada/nhm_tb/**/*.jpeg
+data/master_dataset/health_kannada/nhm_tb/**/*.png

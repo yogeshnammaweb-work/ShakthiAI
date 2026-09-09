@@ -229,7 +229,7 @@ class SQLiteStore:
                     matched_term_count / len(query_terms)
                 )
 
-                lexical_boost += 0.20 * overlap_ratio
+                lexical_boost += 0.30 * overlap_ratio
 
             combined_score = similarity
 
