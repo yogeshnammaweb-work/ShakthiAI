@@ -5,8 +5,7 @@ from pathlib import Path
 
 INPUT_FILE = Path(
     "data/master_dataset/health_kannada/"
-    "fssai_yellowbook_kannada_fixed.jsonl"
-)
+    "fssai_yellowbook_kannada_clean.jsonl")
 
 OUTPUT_FILE = Path(
     "data/master_dataset/health_kannada/"

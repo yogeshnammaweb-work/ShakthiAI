@@ -7,7 +7,7 @@ class RAGPipeline:
         self.retriever = SQLiteRetriever(k=2)
         self.llama = LlamaModel()
 
-        self.confidence_threshold = 0.65
+        self.confidence_threshold = 0.60
 
         # Terms representing the actual Shakthi AI knowledge domain.
         # These are used for OOD/refusal detection.
@@ -208,6 +208,9 @@ class RAGPipeline:
 - ಯಾವುದೇ ವೈದ್ಯಕೀಯ ಅಥವಾ ಆರೋಗ್ಯ ವಿಷಯದಲ್ಲಿ, ನೀಡಿರುವ ಮಾಹಿತಿಯಲ್ಲಿ ಇರುವ ಸಂಗತಿಗಳನ್ನು ಮಾತ್ರ ಹೇಳಿ.
 - ಮೂಲ ಮಾಹಿತಿಯಲ್ಲಿ ಇರುವ ನಿರ್ದಿಷ್ಟ ಪದ ಅಥವಾ ಸಂಗತಿಯನ್ನು ಬದಲಾಯಿಸಿ ಹೊಸ ಅರ್ಥವನ್ನು ಸೃಷ್ಟಿಸಬೇಡಿ.
 - ಮೂಲ ಮಾಹಿತಿಯಲ್ಲಿ ಇರುವ ಪ್ರಮುಖ ಆರೋಗ್ಯ ಸಂಬಂಧಿತ ಪದಗಳನ್ನು ಸಾಧ್ಯವಾದಷ್ಟು ನಿಖರವಾಗಿ ಉಳಿಸಿ.
+- ಹಲವು ಮಾಹಿತಿ ಮೂಲಗಳನ್ನು ನೀಡಿದಾಗ, ಪ್ರಶ್ನೆಗೆ ನೇರವಾಗಿ ಸಂಬಂಧಿಸಿದ ಮೂಲದ ಸಂಗತಿಗಳನ್ನು ಮಾತ್ರ ಬಳಸಿ.
+- ಬೇರೆ ಬೇರೆ ಮೂಲಗಳಲ್ಲಿರುವ ಪ್ರತ್ಯೇಕ ಸಂಗತಿಗಳನ್ನು ಸೇರಿಸಿ ಹೊಸ ಕಾರಣ, ಪರಿಣಾಮ ಅಥವಾ ಸಂಬಂಧವನ್ನು ಸೃಷ್ಟಿಸಬೇಡಿ.
+- ಒಂದು ಸಂಗತಿಯು ಒಂದು ಮೂಲದಲ್ಲಿ ಮಾತ್ರ ಇದ್ದರೆ, ಅದನ್ನು ಬೇರೆ ಮೂಲದ ಸಂಗತಿಯೊಂದಿಗೆ ಜೋಡಿಸಿ ಹೊಸ ಹೇಳಿಕೆ ಮಾಡಬೇಡಿ.
 
 DSERT ಮಾಹಿತಿ:
 {context}
@@ -251,6 +254,9 @@ DSERT ಮಾಹಿತಿ:
 - ಮೂಲ ಮಾಹಿತಿಯಲ್ಲಿರುವ ಪ್ರಮುಖ ಸಂಗತಿಗಳನ್ನು ಬದಲಾಯಿಸಬೇಡಿ.
 - ಮೂಲದಲ್ಲಿರುವ ನಿರ್ದಿಷ್ಟ ಪದಗಳು ಮುಖ್ಯವಾಗಿದ್ದರೆ ಅವುಗಳನ್ನು ನಿಖರವಾಗಿ ಉಳಿಸಿ.
 - ಉದಾಹರಣೆಗೆ, ಮೂಲದಲ್ಲಿ "ಕಪ್ಪು ಬಣ್ಣದ ಮಲ" ಎಂದು ಇದ್ದರೆ ಅದನ್ನು ಬೇರೆ ಪದದಿಂದ ಬದಲಾಯಿಸಬೇಡಿ.
+- ಹಲವು ಮೂಲಗಳನ್ನು ನೀಡಿದ್ದರೆ, ಒಂದು ಮೂಲದಲ್ಲಿರುವ ಸಂಗತಿಯನ್ನು ಮತ್ತೊಂದು ಮೂಲದ ಸಂಗತಿಯೊಂದಿಗೆ ಸೇರಿಸಿ ಹೊಸ ಕಾರಣ ಅಥವಾ ಪರಿಣಾಮವನ್ನು ರಚಿಸಬೇಡಿ.
+- ಪ್ರತಿಯೊಂದು ವಾಕ್ಯವೂ ಕನಿಷ್ಠ ಒಂದು ನಿರ್ದಿಷ್ಟ ಮೂಲದಿಂದ ನೇರವಾಗಿ ಬೆಂಬಲಿತವಾಗಿರಬೇಕು.
+- ಮೂಲದಲ್ಲಿ ನೇರವಾಗಿ ಬೆಂಬಲಿತವಾಗದ ವಾಕ್ಯವನ್ನು ಬರೆಯಬೇಡಿ.
 - ಕನ್ನಡದಲ್ಲಿ ಮಾತ್ರ ಉತ್ತರಿಸಿ.
 - 1 ರಿಂದ 2 ಪೂರ್ಣ ವಾಕ್ಯಗಳಲ್ಲಿ ಉತ್ತರಿಸಿ.
 - ಪ್ರಶ್ನೆಗೆ ನೇರವಾಗಿ ಉತ್ತರಿಸಿ.
@@ -511,14 +517,12 @@ DSERT ಮಾಹಿತಿ:
         sources: list,
     ) -> bool:
         """
-        Conservative evidence-grounding validation.
+        Source-aware evidence grounding validation.
 
-        This does not determine whether a medical statement is
-        medically true. It checks whether the generated answer
-        is supported by the retrieved evidence.
-
-        The validator intentionally allows reasonable Kannada
-        paraphrasing while blocking obvious unsupported concepts.
+        Each meaningful answer sentence must be supported by at least
+        one individual retrieved source. This prevents Gemma from
+        combining unrelated facts from different sources into a new
+        unsupported claim.
         """
         if not answer or not sources:
             return False
@@ -533,72 +537,137 @@ DSERT ಮಾಹಿತಿ:
         if not source_texts:
             return False
 
-        combined_source = " ".join(source_texts)
-
         answer_normalized = self._normalize_text(answer)
-        source_normalized = self._normalize_text(combined_source)
 
-        if not answer_normalized or not source_normalized:
+        if not answer_normalized:
             return False
 
         # ---------------------------------------------------------
-        # 1. Critical factual concept check
+        # 1. Split answer into meaningful sentences.
         # ---------------------------------------------------------
         #
-        # If an important concept appears in the generated answer,
-        # it must also occur in the retrieved evidence.
+        # Kannada commonly uses:
+        #   .
+        #   ।
+        #   !
+        #   ?
         #
-        # This catches substitutions such as:
+        # Keep each sentence independent so that facts from
+        # different sources cannot be incorrectly combined.
         #
-        # Source: ಕಪ್ಪು ಬಣ್ಣದ ಮಲ
-        # Answer: ಕೆಮ್ಮು ಬಣ್ಣದ ಮಲ
-        #
-        for concept in self.critical_grounding_concepts:
-            if concept in answer_normalized:
-                if concept not in source_normalized:
-                    return False
+        import re
 
-        # ---------------------------------------------------------
-        # 2. Meaningful lexical overlap
-        # ---------------------------------------------------------
-        answer_terms = self._extract_grounding_terms(answer)
-        source_terms = self._extract_grounding_terms(combined_source)
-
-        if not answer_terms:
-            return False
-
-        supported_terms = {
-            term
-            for term in answer_terms
-            if self._term_supported_by_source(
-                term,
-                source_terms,
+        sentences = [
+            sentence.strip()
+            for sentence in re.split(
+                r"[.!?।]+",
+                answer,
             )
-        }
+            if sentence.strip()
+        ]
 
-        overlap_count = len(supported_terms)
+        if not sentences:
+            return False
 
-        # For very short answers, at least one meaningful term
-        # should be grounded.
-        if len(answer_terms) <= 3:
-            if overlap_count < 1:
+        # ---------------------------------------------------------
+        # 2. Validate each sentence against ONE source.
+        # ---------------------------------------------------------
+        for sentence in sentences:
+            sentence_normalized = self._normalize_text(
+                sentence
+            )
+
+            if not sentence_normalized:
+                continue
+
+            sentence_terms = self._extract_grounding_terms(
+                sentence
+            )
+
+            if not sentence_terms:
                 return False
 
-        # For longer answers, require at least two grounded
-        # meaningful terms.
-        elif overlap_count < 2:
-            return False
+            sentence_supported = False
 
-        # Do not require a strict percentage of identical words.
-        # Kannada paraphrasing can legitimately change morphology
-        # and function words while preserving the same meaning.
-        #
-        # However, if the answer contains many content terms,
-        # require a reasonable proportion to be supported.
-        overlap_ratio = overlap_count / len(answer_terms)
+            for source_text in source_texts:
+                source_normalized = self._normalize_text(
+                    source_text
+                )
 
-        if len(answer_terms) >= 6 and overlap_ratio < 0.30:
-            return False
+                # ---------------------------------------------
+                # Critical factual concepts must exist in the
+                # SAME source as the sentence.
+                # ---------------------------------------------
+                critical_supported = True
+
+                for concept in self.critical_grounding_concepts:
+                    if concept in sentence_normalized:
+                        if concept not in source_normalized:
+                            critical_supported = False
+                            break
+
+                if not critical_supported:
+                    continue
+
+                source_terms = self._extract_grounding_terms(
+                    source_text
+                )
+
+                supported_terms = {
+                    term
+                    for term in sentence_terms
+                    if self._term_supported_by_source(
+                        term,
+                        source_terms,
+                    )
+                }
+
+                overlap_count = len(supported_terms)
+                overlap_ratio = (
+                    overlap_count / len(sentence_terms)
+                    if sentence_terms
+                    else 0.0
+                )
+
+                # ---------------------------------------------
+                # Short sentences:
+                # require at least one meaningful supported
+                # term.
+                # ---------------------------------------------
+                if len(sentence_terms) <= 3:
+                    if overlap_count >= 1:
+                        sentence_supported = True
+                        break
+
+                # ---------------------------------------------
+                # Medium sentences:
+                # require at least two supported terms and
+                # reasonable overlap.
+                # ---------------------------------------------
+                elif len(sentence_terms) <= 6:
+                    if (
+                        overlap_count >= 2
+                        and overlap_ratio >= 0.40
+                    ):
+                        sentence_supported = True
+                        break
+
+                # ---------------------------------------------
+                # Longer sentences:
+                # require stronger source overlap.
+                # ---------------------------------------------
+                else:
+                    if (
+                        overlap_count >= 2
+                        and overlap_ratio >= 0.30
+                    ):
+                        sentence_supported = True
+                        break
+
+            # If no individual source supports this complete
+            # sentence, reject the answer.
+            if not sentence_supported:
+                return False
 
         return True
 

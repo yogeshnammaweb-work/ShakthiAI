@@ -5,14 +5,12 @@ from pathlib import Path
 
 
 INPUT_FILE = Path(
-    "data/master_dataset/health_kannada/fssai_yellowbook_kannada.jsonl"
+    "data/master_dataset/health_kannada/fssai_yellowbook_kannada_reextracted.jsonl"
 )
 
 OUTPUT_FILE = Path(
     "data/master_dataset/health_kannada/fssai_yellowbook_kannada_clean.jsonl"
 )
-
-
 def clean_text(text: str) -> str:
     text = unicodedata.normalize("NFC", text or "")
 

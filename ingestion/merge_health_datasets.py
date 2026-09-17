@@ -1,11 +1,11 @@
-﻿from pathlib import Path
+from pathlib import Path
 import json
 
 INPUT_FILES = [
     Path("data/master_dataset/StudentModules_chunks.jsonl"),
     Path(
         "data/master_dataset/health_kannada/"
-        "fssai_yellowbook_kannada_chunks_filtered.jsonl"
+        "fssai_yellowbook_kannada_prepared.jsonl"
     ),
     Path(
         "data/master_dataset/health_kannada/nhm_tb/"
